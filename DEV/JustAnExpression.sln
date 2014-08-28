@@ -9,10 +9,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JustAnExpressionTests", "Ju
 EndProject
 Global
 	GlobalSection(TeamFoundationVersionControl) = preSolution
-		SccNumberOfProjects = 1
+		SccNumberOfProjects = 3
 		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
 		SccTeamFoundationServer = https://tfs.codeplex.com/tfs/tfs21
 		SccLocalPath0 = .
+		SccProjectUniqueName1 = JustAnExpression\\JustAnExpression.csproj
+		SccProjectName1 = JustAnExpression
+		SccLocalPath1 = JustAnExpression
+		SccProjectUniqueName2 = JustAnExpressionTests\\JustAnExpressionTests.csproj
+		SccProjectName2 = JustAnExpressionTests
+		SccLocalPath2 = JustAnExpressionTests
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
