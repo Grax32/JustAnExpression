@@ -101,32 +101,37 @@ namespace JustAnExpression
 
         public static Expression Compose<T1, TOut>(this Expression<Func<T1, TOut>> expression, Expression expression1)
         {
-            return (Expression)ComposePrivate(expression, expression1);
+            return ComposePrivate(expression, expression1);
         }
 
         public static Expression Compose<T1, T2, TOut>(this Expression<Func<T1, T2, TOut>> expression, Expression expression1, Expression expression2)
         {
-            return (Expression)ComposePrivate(expression, expression1, expression2);
+            return ComposePrivate(expression, expression1, expression2);
         }
 
         public static Expression Compose<T1, T2, T3, TOut>(this Expression<Func<T1, T2, T3, TOut>> expression, Expression expression1, Expression expression2, Expression expression3)
         {
-            return (Expression)ComposePrivate(expression, expression1, expression2, expression3);
+            return ComposePrivate(expression, expression1, expression2, expression3);
         }
 
         public static Expression Compose<T1, T2, T3, T4, TOut>(this Expression<Func<T1, T2, T3, T4, TOut>> expression, Expression expression1, Expression expression2, Expression expression3, Expression expression4)
         {
-            return (Expression)ComposePrivate(expression, expression1, expression2, expression3, expression4);
+            return ComposePrivate(expression, expression1, expression2, expression3, expression4);
         }
 
         public static Expression Compose<T1, T2, T3, T4, T5, TOut>(this Expression<Func<T1, T2, T3, T4, T5, TOut>> expression, Expression expression1, Expression expression2, Expression expression3, Expression expression4, Expression expression5)
         {
-            return (Expression)ComposePrivate(expression, expression1, expression2, expression3, expression4, expression5);
+            return ComposePrivate(expression, expression1, expression2, expression3, expression4, expression5);
         }
 
         public static Expression Compose<T1, T2, T3, T4, T5, T6, TOut>(this Expression<Func<T1, T2, T3, T4, T5, T6, TOut>> expression, Expression expression1, Expression expression2, Expression expression3, Expression expression4, Expression expression5, Expression expression6)
         {
-            return (Expression)ComposePrivate(expression, expression1, expression2, expression3, expression4, expression5, expression6);
+            return ComposePrivate(expression, expression1, expression2, expression3, expression4, expression5, expression6);
+        }
+
+        public static Expression Compose<T1, T2, T3, T4, T5, T6, T7, TOut>(this Expression<Func<T1, T2, T3, T4, T5, T6, T7, TOut>> expression, Expression expression1, Expression expression2, Expression expression3, Expression expression4, Expression expression5, Expression expression6, Expression expression7)
+        {
+            return ComposePrivate(expression, expression1, expression2, expression3, expression4, expression5, expression6, expression7);
         }
 
         private static Expression ComposePrivate(this LambdaExpression expression, params Expression[] parameters)
@@ -146,11 +151,6 @@ namespace JustAnExpression
             return result;
         }
 
-        public static ParameterExpression GetNamedParameterExpression(this IEnumerable<ParameterExpression> parameters, string name)
-        {
-            return parameters.Single(v => v.Name == name);
-        }
-
         /// <summary>
         /// Return a new expression where originalExpression has been replaced by replacementExpression
         /// </summary>
@@ -165,6 +165,29 @@ namespace JustAnExpression
             return (T)(new ReplaceVisitor(originalExpression, replacementExpression)).Visit(expr);
         }
 
+        /// <summary>
+        /// Replace a parameter in the expressions with a replacement expression
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="expr"></param>
+        /// <param name="numberedParameter">Numbers start with 0</param>
+        /// <param name="replacementExpression"></param>
+        /// <returns></returns>
+        public static T Replace<T>(this T expr, int numberedParameter, Expression replacementExpression)
+            where T : LambdaExpression
+        {
+            var originalExpression = (expr as LambdaExpression).Parameters[numberedParameter];
+
+            return (T)(new ReplaceVisitor(originalExpression, replacementExpression)).Visit(expr);
+        }
+        public static T Replace<T>(this T expr, string namedParameter, Expression replacementExpression)
+            where T : LambdaExpression
+        {
+            var originalExpression = namedParameter.ToLower() == "{body}" ? expr.Body : expr.Parameters.Single(v => v.Name == namedParameter);
+
+            return (T)(new ReplaceVisitor(originalExpression, replacementExpression)).Visit(expr);
+        }
+
         private class ReplaceVisitor : ExpressionVisitor
         {
             private readonly Expression _originalExpression;
@@ -176,23 +199,32 @@ namespace JustAnExpression
                 this._replacementExpression = replacementExpression;
             }
 
-            protected override Expression VisitConstant(ConstantExpression node)
-            {
-                if (_originalExpression is ConstantExpression)
-                {
-                    var fromExpr = _originalExpression as ConstantExpression;
-                    if (fromExpr.Value.Equals(node.Value))
-                    {
-                        return _replacementExpression;
-                    }
-                }
-                return base.VisitConstant(node);
-            }
-
             public override Expression Visit(Expression node)
             {
                 return _originalExpression == node ? _replacementExpression : base.Visit(node);
             }
+        }
+
+        public static Expression ReplaceParameters<TExpr>(this TExpr expr, params Expression[] replacements)
+            where TExpr : LambdaExpression
+        {
+            var parameters = expr.Parameters.ToArray();
+            var body = expr.Body;
+
+            if (parameters.Length != replacements.Length)
+            {
+                throw new ArgumentException("You must specify a replacement for every parameter.  Use null if you do not wish to replace a parameter.", "replacments");
+            }
+
+            for (int i = 0; i < replacements.Length; i++)
+            {
+                var replacementExpression = replacements[i];
+                if (replacementExpression != null)
+                {
+                    body = body.Replace(parameters[i], replacementExpression);
+                }
+            }
+            return body;
         }
     }
 }
