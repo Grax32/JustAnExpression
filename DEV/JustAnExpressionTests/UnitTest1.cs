@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using JustAnExpression;
@@ -299,5 +301,32 @@ namespace JustAnExpressionTests
 
         }
 
+        [TestMethod]
+        public void TestNullSafe()
+        {
+            Expression<Func<Recurse, int>> parental = v => v.Item.Item.GetItem().Item.Item.Value;
+
+            var result = (Expression<Func<Recurse, int>>)Just.NullSafeIfFy(parental, Expression.Constant(-1));
+
+            var nullSafeFunc = result.Compile();
+
+            var x = new Recurse();
+
+            Assert.AreEqual(-1, nullSafeFunc(x));
+
+            x.Item = x;
+            int value = 65534;
+            x.Value = value;
+
+            Assert.AreEqual(value, nullSafeFunc(x));
+        }
+
+        public class Recurse
+        {
+            public Recurse GetItem() { return Item; }
+
+            public Recurse Item { get; set; }
+            public int Value { get; set; }
+        }
     }
 }

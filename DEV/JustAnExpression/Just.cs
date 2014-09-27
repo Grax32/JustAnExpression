@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -119,33 +120,88 @@ namespace JustAnExpression
             expressionList.AddRange(expressions);
         }
 
-        public static Expression NoNull(Expression expr)
+        private static List<Expression> GetAllLevelsFromExpression(Expression expression)
         {
-            var defaultReturnValue = GetDefaultValue(expr.Type);
+            var returnValue = new List<Expression>();
+            Expression parentExpression = null;
 
-            return (new NullCheckVisitor(defaultReturnValue)).Visit(expr);
+            if (expression is MemberExpression)
+            {
+                var memberExpression = expression as MemberExpression;
+                parentExpression = memberExpression.Expression;
+            }
+            else if (expression is MethodCallExpression)
+            {
+                var methodCallExpression = expression as MethodCallExpression;
+                parentExpression = methodCallExpression.Object;
+            }
+
+            if (parentExpression != null)
+            {
+                returnValue.AddRange(GetAllLevelsFromExpression(parentExpression));
+            }
+
+            returnValue.Add(expression);
+            return returnValue;
         }
 
-        class NullCheckVisitor : ExpressionVisitor
+        public static LambdaExpression NullSafeIfFy(LambdaExpression expression, Expression defaultValue)
         {
-            Expression _defaultValue;
-            Expression _nullValue = Expression.Constant(null);
-
-            public NullCheckVisitor(object defaultValue)
+            if (defaultValue == null)
             {
-                _defaultValue = Expression.Constant(defaultValue);
-            }
-            public override Expression Visit(Expression node)
-            {
-
-                return base.Visit(node);
+                defaultValue = Expression.Default(expression.Body.Type);
             }
 
-            public Expression WrapWithNullCheck(Expression node)
+            if (!expression.Body.Type.IsAssignableFrom(defaultValue.Type))
             {
-                throw new NotImplementedException();
-                return Expression.IfThen(Expression.Equal(node, _nullValue), _defaultValue);
+                throw new ArgumentException("The default value must return the same type as the expression", "defaultValue");
             }
+
+            var allLevels = GetAllLevelsFromExpression(expression.Body);
+            var levelExpressions = new List<Expression>();
+            var parameters = new List<ParameterExpression>();
+
+            var outputParm = Expression.Variable(expression.Body.Type, "out");
+            parameters.Add(outputParm);
+
+            var previousParm = (ParameterExpression)allLevels.First();
+            Expression previousExpr = previousParm;
+
+            var level = 0;
+
+            foreach (var currentExpr in allLevels)
+            {
+                var levelValueExpression = currentExpr.Replace(previousExpr, previousParm);
+                var parm = Expression.Variable(currentExpr.Type, "L" + level.ToString());
+
+                if (currentExpr == allLevels.Last())
+                {
+                    levelExpressions.Add(levelValueExpression);
+                }
+                else
+                {
+                    Expression nullConstant = Expression.Constant(null, parm.Type);
+                    parameters.Add(parm);
+                    var nullCheck = Expression.NotEqual(nullConstant, Expression.Assign(parm, levelValueExpression));
+                    levelExpressions.Add(nullCheck);
+                }
+                level++;
+                previousParm = parm;
+
+                previousExpr = currentExpr;
+            }
+
+            var last = levelExpressions.Last();
+            levelExpressions.Remove(last);
+
+            var resultExpr = levelExpressions.Aggregate<Expression>((acc, expr) => Expression.AndAlso(acc, expr));
+            resultExpr = Expression.IfThen(resultExpr, Expression.Assign(outputParm, last));
+            resultExpr = Expression.Block(parameters,
+                Expression.Assign(outputParm, defaultValue),
+                resultExpr,
+                outputParm);
+
+            return Expression.Lambda(resultExpr, expression.Parameters);
         }
 
         public static ExpressionBuilder<T> BeginExpression<T>()
