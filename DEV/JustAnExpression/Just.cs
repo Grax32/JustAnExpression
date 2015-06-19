@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -145,26 +146,50 @@ namespace JustAnExpression
             return returnValue;
         }
 
-        public static LambdaExpression NullSafeIfFy(LambdaExpression expression, Expression defaultValue)
+        public static LambdaExpression Perhaps(LambdaExpression expression, Expression defaultValue = null)
+        {
+            var resultExpr = Perhaps(expression.Body, defaultValue);
+
+            return Expression.Lambda(resultExpr, expression.Parameters);
+        }
+
+
+        private static ReadOnlyCollection<Expression> GetArguments(Expression expr)
+        {
+            if (expr is MethodCallExpression)
+            {
+                return (expr as MethodCallExpression).Arguments;
+            }
+            else if (expr is InvocationExpression)
+            {
+                return (expr as InvocationExpression).Arguments;
+            }
+            else
+            {
+                throw new ArgumentException("Expression is not a MethodCallExpression or InvocationExpression", "expr");
+            }
+        }
+
+        private static Expression Perhaps(Expression expressionBody, Expression defaultValue = null)
         {
             if (defaultValue == null)
             {
-                defaultValue = Expression.Default(expression.Body.Type);
+                defaultValue = Expression.Default(expressionBody.Type);
             }
 
-            if (!expression.Body.Type.IsAssignableFrom(defaultValue.Type))
+            if (!expressionBody.Type.IsAssignableFrom(defaultValue.Type))
             {
                 throw new ArgumentException("The default value must return the same type as the expression", "defaultValue");
             }
 
-            var allLevels = GetAllLevelsFromExpression(expression.Body);
+            var allLevels = GetAllLevelsFromExpression(expressionBody);
             var levelExpressions = new List<Expression>();
             var parameters = new List<ParameterExpression>();
 
-            var outputParm = Expression.Variable(expression.Body.Type, "out");
+            var outputParm = Expression.Variable(expressionBody.Type, "out");
             parameters.Add(outputParm);
 
-            var previousParm = (ParameterExpression)allLevels.First();
+            var previousParm = allLevels.First();
             Expression previousExpr = previousParm;
 
             var level = 0;
@@ -173,6 +198,15 @@ namespace JustAnExpression
             {
                 var levelValueExpression = currentExpr.Replace(previousExpr, previousParm);
                 var parm = Expression.Variable(currentExpr.Type, "L" + level.ToString());
+
+                if (levelValueExpression is InvocationExpression || levelValueExpression is MethodCallExpression)
+                {
+                    foreach (var arg in GetArguments(levelValueExpression))
+                    {
+                        var argResult = Perhaps(arg, Expression.New(arg.Type));
+                        levelValueExpression = levelValueExpression.Replace(arg, argResult);
+                    }
+                }
 
                 if (currentExpr == allLevels.Last())
                 {
@@ -201,7 +235,7 @@ namespace JustAnExpression
                 resultExpr,
                 outputParm);
 
-            return Expression.Lambda(resultExpr, expression.Parameters);
+            return resultExpr;
         }
 
         public static ExpressionBuilder<T> BeginExpression<T>()

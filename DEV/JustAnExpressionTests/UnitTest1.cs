@@ -306,13 +306,55 @@ namespace JustAnExpressionTests
         {
             Expression<Func<Recurse, int>> parental = v => v.Item.Item.GetItem().Item.Item.Value;
 
-            var result = (Expression<Func<Recurse, int>>)Just.NullSafeIfFy(parental, Expression.Constant(-1));
+            var result = (Expression<Func<Recurse, int>>)Just.Perhaps(parental, Expression.Constant(-1));
 
             var nullSafeFunc = result.Compile();
 
             var x = new Recurse();
 
             Assert.AreEqual(-1, nullSafeFunc(x));
+
+            x.Item = x;
+            int value = 65534;
+            x.Value = value;
+
+            Assert.AreEqual(value, nullSafeFunc(x));
+        }
+
+        [TestMethod]
+        public void TestNullSafe2()
+        {
+            Expression<Func<Recurse, int>> parental = v => v.Item.Item.GetItem().Item.Item.Value;
+
+            var result = (Expression<Func<Recurse, int>>)Just.Perhaps(parental);
+
+            var nullSafeFunc = result.Compile();
+
+            var x = new Recurse();
+
+            Assert.AreEqual(0, nullSafeFunc(x));
+
+            x.Item = x;
+            int value = 65534;
+            x.Value = value;
+
+            Assert.AreEqual(value, nullSafeFunc(x));
+        }
+
+        [TestMethod]
+        public void TestNullSafe3()
+        {
+            Func<Recurse, Recurse> funcy = v => v.Item;
+
+            Expression<Func<Recurse, int>> parental = v => funcy(v).Item.GetItem().Item.Item.Value;
+
+            var result = (Expression<Func<Recurse, int>>)Just.Perhaps(parental);
+
+            var nullSafeFunc = result.Compile();
+
+            var x = new Recurse();
+
+            Assert.AreEqual(0, nullSafeFunc(x));
 
             x.Item = x;
             int value = 65534;
